@@ -1,0 +1,115 @@
+---
+- name: Deploy NetDevOps FRR Fabric with BGP (Atomic & Safe)
+  hosts: fabric
+  gather_facts: false
+
+  tasks:
+    - name: Deployment with Automated Rollback Block
+      block:
+        - name: Ensure interfaces are administratively up
+          ansible.builtin.command:
+            cmd: "ip link set dev {{ item.name }} up"
+          loop: "{{ interfaces }}"
+          changed_when: false
+          failed_when: false
+
+        - name: Ensure FRR Prometheus metrics exporter is running
+          ansible.builtin.command:
+            cmd: >-
+              python3 -c "import subprocess; p = subprocess.run(['pgrep', '-f', 'frr_exporter.py']);
+              exit(0) if p.returncode == 0 else subprocess.Popen(['python3', '/usr/local/bin/frr_exporter.py'], start_new_session=True)"
+          changed_when: false
+          when: not ansible_check_mode
+
+        - name: Backup current FRR configuration before change
+          ansible.builtin.copy:
+            src: /etc/frr/frr.conf
+            dest: /etc/frr/frr.conf.bak
+            remote_src: true
+            mode: '0640'
+          when: not ansible_check_mode
+
+        - name: Render candidate FRR configuration to /etc/frr/frr.conf
+          ansible.builtin.template:
+            src: ../templates/frr_bgp.j2
+            dest: /etc/frr/frr.conf
+            owner: frr
+            group: frr
+            mode: '0640'
+            unsafe_writes: true
+          register: frr_conf
+
+        - name: Apply configuration diff dynamically via frr-reload.py
+          ansible.builtin.command:
+            cmd: "/usr/lib/frr/frr-reload.py --reload /etc/frr/frr.conf"
+          register: reload_out
+          changed_when: frr_conf.changed
+          when: not ansible_check_mode
+
+        - name: Save running configuration to startup
+          ansible.builtin.command:
+            cmd: "vtysh -c 'write memory'"
+          changed_when: false
+          failed_when: false
+          when: not ansible_check_mode
+
+        - name: Allow BGP peering to settle
+          ansible.builtin.pause:
+            seconds: 3
+          run_once: true
+          when: not ansible_check_mode
+
+        - name: Verify BGP Neighbor Status (retry until all peers Established)
+          ansible.builtin.command:
+            cmd: "vtysh -c 'show ip bgp summary json'"
+          register: bgp_json_raw
+          changed_when: false
+          when: not ansible_check_mode
+          retries: 10
+          delay: 3
+          until:
+            - bgp_json_raw.rc == 0
+            - (bgp_json_raw.stdout | from_json)['ipv4Unicast']['peers'] is defined
+            - (bgp_json_raw.stdout | from_json)['ipv4Unicast']['peers'].values() | map(attribute='state') | select('equalto', 'Established') | list | length == (bgp_neighbors | length)
+
+        - name: Assert all configured BGP neighbors are Established
+          ansible.builtin.assert:
+            that:
+              - (bgp_json_raw.stdout | from_json)['ipv4Unicast']['peers'][item.peer_ip]['state'] == 'Established'
+            fail_msg: "BGP peer {{ item.peer_ip }} on {{ inventory_hostname }} is NOT in Established state!"
+            success_msg: "BGP peer {{ item.peer_ip }} on {{ inventory_hostname }} is Established."
+          loop: "{{ bgp_neighbors }}"
+          when: not ansible_check_mode
+
+        - name: End-to-end data plane validation (Ping leaf2 from leaf1)
+          ansible.builtin.command:
+            cmd: "ping -c 3 -I 10.255.0.11 10.255.0.12"
+          when: inventory_hostname == 'leaf1' and not ansible_check_mode
+          changed_when: false
+
+      rescue:
+        - name: "[ROLLBACK] Alert operator of validation failure"
+          ansible.builtin.debug:
+            msg: "CRITICAL: Validation failed on {{ inventory_hostname }}! Initiating automated rollback to /etc/frr/frr.conf.bak..."
+
+        - name: "[ROLLBACK] Restore previous FRR configuration from backup"
+          ansible.builtin.copy:
+            src: /etc/frr/frr.conf.bak
+            dest: /etc/frr/frr.conf
+            remote_src: true
+            mode: '0640'
+            unsafe_writes: true
+
+        - name: "[ROLLBACK] Reapply previous configuration with frr-reload.py"
+          ansible.builtin.command:
+            cmd: "/usr/lib/frr/frr-reload.py --reload /etc/frr/frr.conf"
+          failed_when: false
+
+        - name: "[ROLLBACK] Save restored configuration"
+          ansible.builtin.command:
+            cmd: "vtysh -c 'write memory'"
+          failed_when: false
+
+        - name: "[ROLLBACK] Abort execution with failure details"
+          ansible.builtin.fail:
+            msg: "Deployment aborted: BGP or connectivity check failed. Switch {{ inventory_hostname }} was automatically rolled back."

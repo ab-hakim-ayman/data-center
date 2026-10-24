@@ -1,0 +1,29 @@
+---
+hostname: spine1
+router_id: 10.255.0.1
+bgp_asn: 65001
+
+loopbacks:
+  - name: lo
+    ip: 10.255.0.1/32
+
+interfaces:
+  - name: eth1
+    description: "Link to leaf1 (Primary Core Uplink)"
+    ip: 10.0.11.1/30
+  - name: eth2
+    description: "Link to leaf2"
+    ip: 10.0.12.1/30
+
+bgp_neighbors:
+  - peer_ip: 10.0.11.2
+    remote_as: 65011
+    description: "leaf1"
+  - peer_ip: 10.0.12.2
+    remote_as: 65012
+    description: "leaf2"
+
+advertised_networks:
+  - 10.255.0.1/32
+  - 10.0.11.0/30
+  - 10.0.12.0/30

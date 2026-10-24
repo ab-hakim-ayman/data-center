@@ -1,0 +1,62 @@
+name: Data Center CI-CD Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  pre-check:
+    name: Validation, Schema & Dry-Run Diff
+    if: github.event_name == 'pull_request'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Vault Password
+        run: |
+          if [ -f "$HOME/.vault_pass" ]; then
+            cp "$HOME/.vault_pass" .vault_pass
+          elif [ -n "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" ]; then
+            echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > .vault_pass
+          fi
+          chmod 600 .vault_pass 2>/dev/null || true
+
+      - name: Run YAML Linting
+        run: |
+          yamllint .
+
+      - name: Validate Data Center Schema with Pydantic
+        run: |
+          python3 scripts/validate_schema.py
+
+      - name: Ansible Syntax Check
+        run: |
+          ansible-playbook playbooks/deploy.yml --syntax-check
+
+      - name: Ansible Dry-Run & Configuration Diff
+        run: |
+          ansible-playbook playbooks/deploy.yml --check --diff | tee pr_diff.log
+
+  deploy-to-fabric:
+    name: Live Data Center Fabric Deployment
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Vault Password
+        run: |
+          if [ -f "$HOME/.vault_pass" ]; then
+            cp "$HOME/.vault_pass" .vault_pass
+          elif [ -n "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" ]; then
+            echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > .vault_pass
+          fi
+          chmod 600 .vault_pass 2>/dev/null || true
+
+      - name: Push Fabric Config via Ansible
+        run: |
+          ansible-playbook playbooks/deploy.yml

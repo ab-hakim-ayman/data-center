@@ -1,0 +1,74 @@
+name: netdevops-lab
+
+mgmt:
+  network: netdevops-mgmt
+  ipv4-subnet: 172.21.20.0/24
+
+topology:
+  nodes:
+    spine1:
+      kind: linux
+      image: frrouting/frr:latest
+      mgmt-ipv4: 172.21.20.11
+      binds:
+        - configs/spine1.conf:/etc/frr/frr.conf
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - scripts/frr_exporter.py:/usr/local/bin/frr_exporter.py
+
+    spine2:
+      kind: linux
+      image: frrouting/frr:latest
+      mgmt-ipv4: 172.21.20.12
+      binds:
+        - configs/spine2.conf:/etc/frr/frr.conf
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - scripts/frr_exporter.py:/usr/local/bin/frr_exporter.py
+
+    leaf1:
+      kind: linux
+      image: frrouting/frr:latest
+      mgmt-ipv4: 172.21.20.21
+      binds:
+        - configs/leaf1.conf:/etc/frr/frr.conf
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - scripts/frr_exporter.py:/usr/local/bin/frr_exporter.py
+
+    leaf2:
+      kind: linux
+      image: frrouting/frr:latest
+      mgmt-ipv4: 172.21.20.22
+      binds:
+        - configs/leaf2.conf:/etc/frr/frr.conf
+        - configs/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+        - scripts/frr_exporter.py:/usr/local/bin/frr_exporter.py
+
+    prometheus:
+      kind: linux
+      image: prom/prometheus:latest
+      mgmt-ipv4: 172.21.20.30
+      ports:
+        - "9090:9090"
+      binds:
+        - configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+    grafana:
+      kind: linux
+      image: grafana/grafana:latest
+      mgmt-ipv4: 172.21.20.31
+      ports:
+        - "3000:3000"
+      env:
+        GF_SECURITY_ADMIN_PASSWORD: admin
+        GF_USERS_ALLOW_SIGN_UP: "false"
+      binds:
+        - configs/grafana/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+
+  links:
+    - endpoints: ["spine1:eth1", "leaf1:eth1"]
+    - endpoints: ["spine1:eth2", "leaf2:eth1"]
+    - endpoints: ["spine2:eth1", "leaf1:eth2"]
+    - endpoints: ["spine2:eth2", "leaf2:eth2"]

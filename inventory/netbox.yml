@@ -1,0 +1,30 @@
+# Ansible Dynamic Inventory Plugin for NetBox
+# Dynamically pulls fabric topology and configuration parameters from NetBox REST API
+---
+plugin: netbox.netbox.nb_inventory
+api_endpoint: http://localhost:8000
+token: 0123456789abcdef0123456789abcdef01234567
+validate_certs: false
+config_context: true
+
+device_query_filters:
+  - site: lab-dc1
+
+group_by:
+  - device_roles
+
+compose:
+  ansible_connection: "'docker'"
+  ansible_host: "'clab-netdevops-lab-' + (name | string)"
+  hostname: name | string
+  bgp_asn: config_context.bgp_asn | int
+  router_id: config_context.router_id
+  loopbacks: config_context.loopbacks
+  interfaces: config_context.interfaces
+  bgp_neighbors: config_context.bgp_neighbors
+  advertised_networks: config_context.advertised_networks
+
+groups:
+  spines: "'spine' in device_roles"
+  leaves: "'leaf' in device_roles"
+  fabric: "'spine' in device_roles or 'leaf' in device_roles"

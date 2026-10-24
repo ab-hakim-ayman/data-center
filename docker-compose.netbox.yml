@@ -1,0 +1,64 @@
+services:
+  netbox-postgres:
+    image: postgres:15-alpine
+    container_name: netbox-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: netbox
+      POSTGRES_USER: netbox
+      POSTGRES_PASSWORD: netbox_password
+    volumes:
+      - netbox-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netbox -d netbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  netbox-redis:
+    image: redis:7-alpine
+    container_name: netbox-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - netbox-redis-data:/data
+
+  netbox-redis-cache:
+    image: redis:7-alpine
+    container_name: netbox-redis-cache
+    restart: unless-stopped
+
+  netbox:
+    image: netboxcommunity/netbox:latest
+    container_name: netbox
+    restart: unless-stopped
+    depends_on:
+      netbox-postgres:
+        condition: service_healthy
+      netbox-redis:
+        condition: service_started
+      netbox-redis-cache:
+        condition: service_started
+    ports:
+      - "8000:8080"
+    environment:
+      DB_HOST: netbox-postgres
+      DB_NAME: netbox
+      DB_USER: netbox
+      DB_PASSWORD: netbox_password
+      REDIS_HOST: netbox-redis
+      REDIS_CACHE_HOST: netbox-redis-cache
+      SECRET_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      ALLOWED_HOSTS: "*"
+      GRANIAN_WORKERS: "1"
+      SKIP_SUPERUSER: "false"
+      SUPERUSER_NAME: admin
+      SUPERUSER_PASSWORD: admin
+      SUPERUSER_EMAIL: admin@netdevops.local
+    volumes:
+      - netbox-media-files:/opt/netbox/netbox/media
+
+volumes:
+  netbox-postgres-data:
+  netbox-redis-data:
+  netbox-media-files:

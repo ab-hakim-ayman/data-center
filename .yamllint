@@ -1,0 +1,18 @@
+---
+extends: relaxed
+
+rules:
+  line-length:
+    max: 200
+    level: warning
+  truthy:
+    level: warning
+  comments:
+    level: warning
+  document-start: disable
+
+ignore: |
+  clab-*/
+  .clab*/
+  .git/
+  .github/

@@ -1,0 +1,39 @@
+!
+frr version 8.4_git
+frr defaults traditional
+hostname {{ hostname }}
+password {{ vault_router_password }}
+enable password {{ vault_router_password }}
+no ipv6 forwarding
+!
+{% for loopback in loopbacks | default([]) %}
+interface {{ loopback.name }}
+ ip address {{ loopback.ip }}
+!
+{% endfor %}
+{% for intf in interfaces | default([]) %}
+interface {{ intf.name }}
+ description {{ intf.description }}
+ ip address {{ intf.ip }}
+!
+{% endfor %}
+router bgp {{ bgp_asn }}
+ bgp router-id {{ router_id }}
+ no bgp ebgp-requires-policy
+{% for neighbor in bgp_neighbors | default([]) %}
+ neighbor {{ neighbor.peer_ip }} remote-as {{ neighbor.remote_as }}
+ neighbor {{ neighbor.peer_ip }} description {{ neighbor.description }}
+{% endfor %}
+ !
+ address-family ipv4 unicast
+{% for net in advertised_networks | default([]) %}
+  network {{ net }}
+{% endfor %}
+{% for neighbor in bgp_neighbors | default([]) %}
+  neighbor {{ neighbor.peer_ip }} activate
+{% endfor %}
+ exit-address-family
+!
+line vty
+!
+end
