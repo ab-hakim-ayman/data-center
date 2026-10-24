@@ -132,7 +132,20 @@ The lab includes real-time telemetry running in the Containerlab fabric:
 3. **Secrets Management (Ansible Vault)**:
    - Sensitive router credentials encrypted with AES-256 in `inventory/group_vars/all/vault.yml`.
    - Vault password stored in `.vault_pass` (git-ignored).
-4. **Automated CI/CD**:
-   - Pull Request: runs `yamllint`, `validate_schema.py`, syntax-check, and `--check --diff`.
-   - Push to `main`: triggers live fabric deployment and post-change data plane validation.
+4. **Pre-Deployment Control Plane Verification (Batfish)**:
+   - `scripts/verify_batfish.py` runs formal control plane assertions before live push:
+     - Bi-directional BGP session peering reciprocity.
+     - Redundant ECMP uplinks (Leaf to Spine degree >= 2).
+     - Loop-free routing on all Loopback0 interfaces.
+5. **Ultra-Fast Concurrent Automation (Nornir & Scrapli)**:
+   - `scripts/nornir_fabric_exec.py` leverages multithreaded Python execution (`nornir_config.yaml`).
+   - Audits all fabric switches simultaneously in sub-second execution without Ansible agent overhead.
+6. **Model-Driven Telemetry (gNMI & YANG)**:
+   - `scripts/gnmi_telemetry.py` implements gRPC Network Management Interface (gNMI) using OpenConfig YANG data models:
+     - `/interfaces/interface/state/counters` (real-time byte & packet telemetry)
+     - `/network-instances/network-instance/protocols/protocol[identifier=BGP]/neighbors` (BGP telemetry streaming).
+7. **Automated CI/CD**:
+   - Pull Request: runs `yamllint`, Pydantic schema validation, Batfish pre-change verification, and Ansible syntax/diff check.
+   - Push to `main`: live fabric deployment, concurrent post-deployment audit via Nornir, and gNMI telemetry verification.
+
 

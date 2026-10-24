@@ -1,0 +1,10 @@
+---
+fabric_nodes:
+  platform: linux
+  username: root
+  port: 22
+  connection_options:
+    scrapli:
+      platform: generic
+      port: 22
+      transport: standard

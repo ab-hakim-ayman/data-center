@@ -1,0 +1,36 @@
+---
+spine1:
+  hostname: 172.21.20.11
+  groups:
+    - fabric_nodes
+  data:
+    role: spine
+    asn: 65001
+    loopback: 10.255.0.1/32
+
+spine2:
+  hostname: 172.21.20.12
+  groups:
+    - fabric_nodes
+  data:
+    role: spine
+    asn: 65002
+    loopback: 10.255.0.2/32
+
+leaf1:
+  hostname: 172.21.20.21
+  groups:
+    - fabric_nodes
+  data:
+    role: leaf
+    asn: 65011
+    loopback: 10.255.0.11/32
+
+leaf2:
+  hostname: 172.21.20.22
+  groups:
+    - fabric_nodes
+  data:
+    role: leaf
+    asn: 65012
+    loopback: 10.255.0.12/32

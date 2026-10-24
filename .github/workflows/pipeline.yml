@@ -32,6 +32,10 @@ jobs:
         run: |
           python3 scripts/validate_schema.py
 
+      - name: Pre-Deployment Control-Plane Verification (Batfish)
+        run: |
+          python3 scripts/verify_batfish.py
+
       - name: Ansible Syntax Check
         run: |
           ansible-playbook playbooks/deploy.yml --syntax-check
@@ -41,7 +45,7 @@ jobs:
           ansible-playbook playbooks/deploy.yml --check --diff | tee pr_diff.log
 
   deploy-to-fabric:
-    name: Live Data Center Fabric Deployment
+    name: Live Data Center Fabric Deployment & Verification
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: self-hosted
     steps:
@@ -60,3 +64,11 @@ jobs:
       - name: Push Fabric Config via Ansible
         run: |
           ansible-playbook playbooks/deploy.yml
+
+      - name: Post-Deployment Fast Audit via Nornir & Scrapli
+        run: |
+          python3 scripts/nornir_fabric_exec.py
+
+      - name: Model-Driven Streaming Telemetry (gNMI & YANG)
+        run: |
+          python3 scripts/gnmi_telemetry.py
